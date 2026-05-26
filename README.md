@@ -1,6 +1,3 @@
-✨🍬Planning to help this branch stay alive and any issues will try to solve or fix .. But will be slow as I run many github repos . before raising any issues, please update comfyUI to the latest and esnure all the required packages are updated ass well. Share your workflow in issues to retest same at our end and update the patch.🍬
-
-
 <b> Efficiency Nodes for ComfyUI Version 2.0+
 =======
 ### A collection of <a href="https://github.com/comfyanonymous/ComfyUI" >ComfyUI</a> custom nodes to help streamline workflows and reduce total node count.
