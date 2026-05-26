@@ -28,6 +28,10 @@ function toggleWidget(node, widget, show = false, suffix = "") {
     widget.type = show ? origProps[widget.name].origType : HIDDEN_TAG + suffix;
     widget.computeSize = show ? origProps[widget.name].origComputeSize : () => [0, -4];
 
+    // Modern ComfyUI frontends honor widget.hidden; the type/computeSize hack alone
+    // leaves the last hidden widget rendered (and drawn outside the node bounds).
+    widget.hidden = !show;
+
     // Recursively handle linked widgets if they exist
     widget.linkedWidgets?.forEach(w => toggleWidget(node, w, ":" + widget.name, show));
 
