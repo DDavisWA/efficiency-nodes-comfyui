@@ -2948,45 +2948,63 @@ class TSC_XYplot_Checkpoint:
 # TSC XY Plot: Diffusion Model (UNet — for Wan/HunyuanVideo/etc. workflows with separate CLIP)
 class TSC_XYplot_DiffusionModel:
 
+    modes = ["Model Names", "Diffusion Model Batch"]
+
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {
-            "batch_path":     ("STRING", {"default": xy_batch_default_path, "multiline": False}),
-            "subdirectories": ("BOOLEAN", {"default": False}),
-            "batch_sort":     (["ascending", "descending"],),
-            "batch_max":      ("INT", {"default": -1, "min": -1, "max": XYPLOT_LIM, "step": 1}),
-            "weight_dtype":   (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],),
-        }}
+        models = ["None"] + folder_paths.get_filename_list("diffusion_models")
+
+        inputs = {
+            "required": {
+                "input_mode":     (cls.modes,),
+                "batch_path":     ("STRING", {"default": xy_batch_default_path, "multiline": False}),
+                "subdirectories": ("BOOLEAN", {"default": False}),
+                "batch_sort":     (["ascending", "descending"],),
+                "batch_max":      ("INT", {"default": -1, "min": -1, "max": XYPLOT_LIM, "step": 1}),
+                "model_count":    ("INT", {"default": XYPLOT_DEF, "min": 0, "max": XYPLOT_LIM, "step": 1}),
+                "weight_dtype":   (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],),
+            }
+        }
+
+        for i in range(1, XYPLOT_LIM+1):
+            inputs["required"][f"model_name_{i}"] = (models,)
+
+        return inputs
 
     RETURN_TYPES = ("XY",)
     RETURN_NAMES = ("X or Y",)
     FUNCTION = "xy_value"
     CATEGORY = "Efficiency Nodes/XY Inputs"
 
-    def xy_value(self, batch_path, subdirectories, batch_sort, batch_max, weight_dtype):
-        if batch_max == 0:
-            return (None,)
-
-        try:
-            model_files = get_batch_files(batch_path, CKPT_EXTENSIONS, include_subdirs=subdirectories)
-        except Exception as e:
-            print(f"{error('XY Plot Error:')} {e}")
-            return (None,)
-
-        if not model_files:
-            print(f"{error('XY Plot Error:')} No diffusion model files found in: {batch_path}")
-            return (None,)
-
-        if batch_sort == "ascending":
-            model_files.sort()
+    def xy_value(self, input_mode, batch_path, subdirectories, batch_sort, batch_max, model_count, weight_dtype, **kwargs):
+        if "Batch" not in input_mode:
+            names = [kwargs.get(f"model_name_{i}") for i in range(1, model_count + 1)]
+            xy_value = [(name, weight_dtype) for name in names if name != "None"]
         else:
-            model_files.sort(reverse=True)
+            if batch_max == 0:
+                return (None,)
 
-        if batch_max != -1:
-            model_files = model_files[:batch_max]
+            try:
+                model_files = get_batch_files(batch_path, CKPT_EXTENSIONS, include_subdirs=subdirectories)
+            except Exception as e:
+                print(f"{error('XY Plot Error:')} {e}")
+                return (None,)
 
-        xy_value = [(m, weight_dtype) for m in model_files]
-        return (("DiffusionModel", xy_value),)
+            if not model_files:
+                print(f"{error('XY Plot Error:')} No diffusion model files found in: {batch_path}")
+                return (None,)
+
+            if batch_sort == "ascending":
+                model_files.sort()
+            else:
+                model_files.sort(reverse=True)
+
+            if batch_max != -1:
+                model_files = model_files[:batch_max]
+
+            xy_value = [(m, weight_dtype) for m in model_files]
+
+        return (("DiffusionModel", xy_value),) if xy_value else (None,)
 
 #=======================================================================================================================
 # TSC XY Plot: LoRA Batch (DISABLED)

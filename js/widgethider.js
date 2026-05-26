@@ -72,6 +72,7 @@ function handleInputModeWidgetsVisibility(node, inputModeValue) {
     const vaeNameWidgets = [...generateWidgetNames("vae_name", 50)];
     const loraNameWidgets = [...generateWidgetNames("lora_name", 50)];
     const loraWtWidgets = [...generateWidgetNames("lora_wt", 50)];
+    const modelNameWidgets = [...generateWidgetNames("model_name", 50)];
     const modelStrWidgets = [...generateWidgetNames("model_str", 50)];
     const clipStrWidgets = [...generateWidgetNames("clip_str", 50)];
     const xWidgets = ["X_batch_count", "X_first_value", "X_last_value"]
@@ -91,6 +92,10 @@ function handleInputModeWidgetsVisibility(node, inputModeValue) {
         "XY Input: VAE": {
             "VAE Names": [...batchWidgets],
             "VAE Batch": [...vaeNameWidgets, "vae_count"]
+        },
+        "XY Input: Diffusion Model": {
+            "Model Names": [...batchWidgets],
+            "Diffusion Model Batch": [...modelNameWidgets, "model_count"]
         },
         "XY Input: Checkpoint": {
             "Ckpt Names": [...clipSkipWidgets, ...vaeNameWidgets, ...batchWidgets],
@@ -279,6 +284,10 @@ const nodeWidgetHandlers = {
     "XY Input: VAE": {
         'input_mode': handleXYInputVAEInputMode,
         'vae_count': handleXYInputVAEVaeCount
+    },
+    "XY Input: Diffusion Model": {
+        'input_mode': handleXYInputDiffusionModelInputMode,
+        'model_count': handleXYInputDiffusionModelModelCount
     },
     "XY Input: Prompt S/R": {
         'replace_count': handleXYInputPromptSRReplaceCount
@@ -550,6 +559,22 @@ function handleXYInputVAEInputMode(node, widget) {
 function handleXYInputVAEVaeCount(node, widget) {
     if (findWidgetByName(node, "input_mode").value === "VAE Names") {
         handleWidgetVisibility(node, widget.value, "vae_name_", 50);
+    }
+}
+
+// XY Input: Diffusion Model Handlers
+function handleXYInputDiffusionModelInputMode(node, widget) {
+    handleInputModeWidgetsVisibility(node, widget.value);
+    if (widget.value === "Model Names") {
+        handleWidgetVisibility(node, findWidgetByName(node, "model_count").value, "model_name_", 50);
+    } else {
+        handleWidgetVisibility(node, 0, "model_name_", 50);
+    }
+}
+
+function handleXYInputDiffusionModelModelCount(node, widget) {
+    if (findWidgetByName(node, "input_mode").value === "Model Names") {
+        handleWidgetVisibility(node, widget.value, "model_name_", 50);
     }
 }
 
