@@ -33,7 +33,8 @@ loaded_objects = {
     "ckpt": [], # (ckpt_name, ckpt_model, clip, bvae, [id])
     "refn": [], # (ckpt_name, ckpt_model, clip, bvae, [id])
     "vae": [],  # (vae_name, vae, [id])
-    "lora": []  # ([(lora_name, strength_model, strength_clip)], ckpt_name, lora_model, clip_lora, [id])
+    "lora": [], # ([(lora_name, strength_model, strength_clip)], ckpt_name, lora_model, clip_lora, [id])
+    "unet": [], # (unet_name, weight_dtype, model, [id])
 }
 
 # Cache for Efficient Ksamplers
@@ -161,7 +162,7 @@ def print_loaded_objects_entries(id=None, prompt=None, show_id=False):
     else:
         print(f"\033[36mModels Cache: \nnode_id:{int(id)}\033[0m")
     entries_found = False
-    for key in ["ckpt", "refn", "vae", "lora"]:
+    for key in ["ckpt", "refn", "vae", "lora", "unet"]:
         entries_with_id = loaded_objects[key] if id is None else [entry for entry in loaded_objects[key] if id in entry[-1]]
         if not entries_with_id:  # If no entries with the chosen ID, print None and skip this key
             continue
@@ -266,6 +267,55 @@ def load_checkpoint(ckpt_name, id, output_vae=True, cache=None, cache_overwrite=
                 loaded_objects[ckpt_type].append((ckpt_name, model, clip, vae, [id]))
 
     return model, clip, vae
+
+def load_diffusion_model(unet_name, weight_dtype, id, cache=None, cache_overwrite=True):
+    global loaded_objects
+
+    unet_name = unet_name.copy() if isinstance(unet_name, (list, dict, set)) else unet_name
+
+    for entry in loaded_objects["unet"]:
+        if entry[0] == unet_name and entry[1] == weight_dtype:
+            _, _, model, ids = entry
+            cache_full = cache and len([e for e in loaded_objects["unet"] if id in e[-1]]) >= cache
+            if cache_full:
+                clear_cache(id, cache, "unet")
+            elif id not in ids:
+                ids.append(id)
+            return model
+
+    model_options = {}
+    if weight_dtype == "fp8_e4m3fn":
+        model_options["dtype"] = torch.float8_e4m3fn
+    elif weight_dtype == "fp8_e4m3fn_fast":
+        model_options["dtype"] = torch.float8_e4m3fn
+        model_options["fp8_optimizations"] = True
+    elif weight_dtype == "fp8_e5m2":
+        model_options["dtype"] = torch.float8_e5m2
+
+    if os.path.isabs(unet_name):
+        unet_path = unet_name
+    else:
+        unet_path = folder_paths.get_full_path("diffusion_models", unet_name)
+
+    with suppress_output():
+        model = comfy.sd.load_diffusion_model(unet_path, model_options=model_options)
+
+    if cache:
+        cache_list = [e for e in loaded_objects["unet"] if id in e[-1]]
+        if len(cache_list) < cache:
+            loaded_objects["unet"].append((unet_name, weight_dtype, model, [id]))
+        else:
+            clear_cache(id, cache, "unet")
+            if cache_overwrite:
+                for e in loaded_objects["unet"]:
+                    if id in e[-1]:
+                        e[-1].remove(id)
+                        if not e[-1]:
+                            loaded_objects["unet"].remove(e)
+                        break
+                loaded_objects["unet"].append((unet_name, weight_dtype, model, [id]))
+
+    return model
 
 def get_bvae_by_ckpt_name(ckpt_name):
     for ckpt in loaded_objects["ckpt"]:
@@ -418,17 +468,18 @@ def clear_cache(id, cache, dict_name):
         id_associated_entries = [entry for entry in loaded_objects[dict_name] if id in entry[-1]]
 
 
-def clear_cache_by_exception(node_id, vae_dict=None, ckpt_dict=None, lora_dict=None, refn_dict=None):
+def clear_cache_by_exception(node_id, vae_dict=None, ckpt_dict=None, lora_dict=None, refn_dict=None, unet_dict=None):
     global loaded_objects
 
     dict_mapping = {
         "vae_dict": "vae",
         "ckpt_dict": "ckpt",
         "lora_dict": "lora",
-        "refn_dict": "refn"
+        "refn_dict": "refn",
+        "unet_dict": "unet",
     }
 
-    for arg_name, arg_val in {"vae_dict": vae_dict, "ckpt_dict": ckpt_dict, "lora_dict": lora_dict, "refn_dict": refn_dict}.items():
+    for arg_name, arg_val in {"vae_dict": vae_dict, "ckpt_dict": ckpt_dict, "lora_dict": lora_dict, "refn_dict": refn_dict, "unet_dict": unet_dict}.items():
         if arg_val is None:
             continue
 
@@ -468,7 +519,8 @@ def get_cache_numbers(node_name):
     ckpt_cache = int(model_cache_settings.get('ckpt', 1))
     lora_cache = int(model_cache_settings.get('lora', 1))
     refn_cache = int(model_cache_settings.get('ckpt', 1))
-    return vae_cache, ckpt_cache, lora_cache, refn_cache,
+    unet_cache = int(model_cache_settings.get('unet', 1))
+    return vae_cache, ckpt_cache, lora_cache, refn_cache, unet_cache
 
 def print_last_helds(id=None):
     print("\n" + "-" * 40)  # Print an empty line followed by a separator line

@@ -141,7 +141,7 @@ class TSC_EfficientLoader:
         latent = torch.zeros([batch_size, 4, empty_latent_height // 8, empty_latent_width // 8]).cpu()
 
         # Retrieve cache numbers
-        vae_cache, ckpt_cache, lora_cache, refn_cache = get_cache_numbers("Efficient Loader")
+        vae_cache, ckpt_cache, lora_cache, refn_cache, _unet_cache = get_cache_numbers("Efficient Loader")
 
         if lora_name != "None" or lora_stack:
             # Initialize an empty list to store LoRa parameters.
@@ -875,6 +875,9 @@ class TSC_KSampler:
                 elif type_ == "Scheduler" and isinstance(value, tuple):
                     return value[0]  # Return only the first entry of the tuple
 
+                elif type_ == "DiffusionModel" and isinstance(value, list):
+                    return [os.path.basename(v[0]) for v in value]
+
                 elif type_ == "VAE" and isinstance(value, list):
                     # For each string in the list, extract the filename from the path
                     return [os.path.basename(v) for v in value]
@@ -943,12 +946,12 @@ class TSC_KSampler:
 
             # If not caching models, set to 1.
             if cache_models == "False":
-                vae_cache = ckpt_cache = lora_cache = refn_cache = 1
+                vae_cache = ckpt_cache = lora_cache = refn_cache = unet_cache = 1
             else:
                 # Retrieve cache numbers
-                vae_cache, ckpt_cache, lora_cache, refn_cache = get_cache_numbers("XY Plot")
+                vae_cache, ckpt_cache, lora_cache, refn_cache, unet_cache = get_cache_numbers("XY Plot")
             # Pack cache numbers in a tuple
-            cache = (vae_cache, ckpt_cache, lora_cache, refn_cache)
+            cache = (vae_cache, ckpt_cache, lora_cache, refn_cache, unet_cache)
 
             # Add seed to every entry in the list
             X_value = [v + seed for v in X_value] if "Seeds++ Batch" == X_type else X_value
@@ -987,6 +990,7 @@ class TSC_KSampler:
                 "Refiner",
                 "LoRA",
                 "LoRA Stacks",
+                "DiffusionModel",
                 "VAE",
             ]
             conditioners = {
@@ -1027,7 +1031,7 @@ class TSC_KSampler:
             # Note: Special LoRA types will not trigger cache: "LoRA Batch", "LoRA Wt", "LoRA MStr", "LoRA CStr"
 
             # Map the type names to the dictionaries
-            dict_map = {"VAE": [], "Checkpoint": [], "LoRA": [], "Refiner": []}
+            dict_map = {"VAE": [], "Checkpoint": [], "LoRA": [], "Refiner": [], "DiffusionModel": []}
 
             # Create a list of tuples with types and values
             type_value_pairs = [(X_type, X_value.copy()), (Y_type, Y_value.copy())]
@@ -1063,6 +1067,12 @@ class TSC_KSampler:
             else:
                 refn_dict = []
 
+            # Construct unet_dict
+            if dict_map.get("DiffusionModel", []):
+                unet_dict = [t[0] for t in dict_map["DiffusionModel"]]
+            else:
+                unet_dict = []
+
             # If both ckpt_dict and lora_dict are not empty, manipulate lora_dict as described
             if ckpt_dict and lora_dict:
                 lora_dict = [(lora_stack, ckpt) for ckpt in ckpt_dict for lora_stack in lora_dict]
@@ -1085,7 +1095,7 @@ class TSC_KSampler:
             ###print(f"vae_dict={vae_dict}\nckpt_dict={ckpt_dict}\nlora_dict={lora_dict}\nrefn_dict={refn_dict}")
 
             # Clean values that won't be reused
-            clear_cache_by_exception(xyplot_id, vae_dict=vae_dict, ckpt_dict=ckpt_dict, lora_dict=lora_dict, refn_dict=refn_dict)
+            clear_cache_by_exception(xyplot_id, vae_dict=vae_dict, ckpt_dict=ckpt_dict, lora_dict=lora_dict, refn_dict=refn_dict, unet_dict=unet_dict)
 
             ### Print loaded_objects for debugging
             ###print_loaded_objects_entries()
@@ -1245,6 +1255,11 @@ class TSC_KSampler:
                     end_at_step = int(var * steps)
                     text = f"Refiner: {'On' if var < 1 else 'Off'}"
 
+                elif var_type == "DiffusionModel":
+                    ckpt_name = var  # var = (unet_name, weight_dtype)
+                    unet_filename = os.path.splitext(os.path.basename(var[0]))[0]
+                    text = f"{unet_filename}"
+
                 elif var_type == "Clip Skip":
                     clip_skip = (var, clip_skip[1])
                     text = f"ClipSkip ({clip_skip[0]})"
@@ -1361,7 +1376,8 @@ class TSC_KSampler:
 
                 # If var_type VAE , truncate entries in the var_label list when it's full
                 if len(var_label) == num_label and (var_type == "VAE" or var_type == "Checkpoint"
-                                                    or var_type == "Refiner" or "LoRA" in var_type):
+                                                    or var_type == "Refiner" or "LoRA" in var_type
+                                                    or var_type == "DiffusionModel"):
                     var_label = truncate_texts(var_label, num_label, max_label_len)
 
                 # Return the modified variables
@@ -1408,6 +1424,11 @@ class TSC_KSampler:
                     # Don't cache Checkpoints or LoRAs
                     model, clip = load_lora(lora_stack, ckpt_name, xyplot_id, cache=0)
                     encode = True
+
+                # Load Diffusion Model (UNet) if required — CLIP stays external, no re-encode needed
+                if (X_type == "DiffusionModel" and index == 0) or Y_type == "DiffusionModel":
+                    unet_name, weight_dtype = ckpt_name
+                    model = load_diffusion_model(unet_name, weight_dtype, xyplot_id, cache=cache[4])
 
                 if (X_type == "Refiner" and index == 0) or Y_type == "Refiner":
                     refiner_model, refiner_clip, _ = \
@@ -1610,7 +1631,7 @@ class TSC_KSampler:
 
             # Clean up cache
             if cache_models == "False":
-                clear_cache_by_exception(xyplot_id, vae_dict=[], ckpt_dict=[], lora_dict=[], refn_dict=[])
+                clear_cache_by_exception(xyplot_id, vae_dict=[], ckpt_dict=[], lora_dict=[], refn_dict=[], unet_dict=[])
             else:
                 # Avoid caching models accross both X and Y
                 if X_type == "Checkpoint":
@@ -1619,6 +1640,8 @@ class TSC_KSampler:
                     clear_cache_by_exception(xyplot_id, ckpt_dict=[], lora_dict=[])
                 elif X_type in ("LoRA", "LoRA Stacks"):
                     clear_cache_by_exception(xyplot_id, ckpt_dict=[], refn_dict=[])
+                elif X_type == "DiffusionModel":
+                    pass  # unet cache is independent of ckpt/lora/refn
 
             # __________________________________________________________________________________________________________
             # Function for printing all plot variables (WARNING: This function is an absolute mess)
@@ -1799,6 +1822,15 @@ class TSC_KSampler:
                     else:
                         return ""
 
+                # Diffusion Model (UNet) — build its own printable name list and prevent the
+                # checkpoint logic below from choking on the (unet_name, weight_dtype) tuple.
+                diffusion_model_name = None
+                if X_type == "DiffusionModel" or Y_type == "DiffusionModel":
+                    dm_value = X_value if X_type == "DiffusionModel" else Y_value
+                    diffusion_model_name = "\n      ".join(
+                        [os.path.splitext(os.path.basename(str(v[0])))[0] for v in dm_value])
+                    ckpt_name = None
+
                 # VAE, Checkpoint, Clip Skip, LoRA
                 ckpt_name, clip_skip, vae_name = get_checkpoint_name(X_type, Y_type, X_value, Y_value, ckpt_name, clip_skip, "ckpt", vae_name)
                 lora_name, lora_wt, lora_model_str, lora_clip_str = get_lora_name(X_type, Y_type, X_value, Y_value, lora_stack)
@@ -1873,6 +1905,8 @@ class TSC_KSampler:
                 print(f"img_dims: {i_height} x {i_width}")
                 print(f"plot_dim: {num_cols} x {num_rows}")
                 print(f"ckpt: {ckpt_name if ckpt_name is not None else ''}")
+                if diffusion_model_name:
+                    print(f"diffusion_model: {diffusion_model_name}")
                 if clip_skip:
                     print(f"clip_skip: {clip_skip}")
                 if sampler_type == "sdxl":
@@ -2909,6 +2943,50 @@ class TSC_XYplot_Checkpoint:
                 return (None,)
 
         return ((xy_type, xy_value),) if xy_value else (None,)
+
+#=======================================================================================================================
+# TSC XY Plot: Diffusion Model (UNet — for Wan/HunyuanVideo/etc. workflows with separate CLIP)
+class TSC_XYplot_DiffusionModel:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "batch_path":     ("STRING", {"default": xy_batch_default_path, "multiline": False}),
+            "subdirectories": ("BOOLEAN", {"default": False}),
+            "batch_sort":     (["ascending", "descending"],),
+            "batch_max":      ("INT", {"default": -1, "min": -1, "max": XYPLOT_LIM, "step": 1}),
+            "weight_dtype":   (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],),
+        }}
+
+    RETURN_TYPES = ("XY",)
+    RETURN_NAMES = ("X or Y",)
+    FUNCTION = "xy_value"
+    CATEGORY = "Efficiency Nodes/XY Inputs"
+
+    def xy_value(self, batch_path, subdirectories, batch_sort, batch_max, weight_dtype):
+        if batch_max == 0:
+            return (None,)
+
+        try:
+            model_files = get_batch_files(batch_path, CKPT_EXTENSIONS, include_subdirs=subdirectories)
+        except Exception as e:
+            print(f"{error('XY Plot Error:')} {e}")
+            return (None,)
+
+        if not model_files:
+            print(f"{error('XY Plot Error:')} No diffusion model files found in: {batch_path}")
+            return (None,)
+
+        if batch_sort == "ascending":
+            model_files.sort()
+        else:
+            model_files.sort(reverse=True)
+
+        if batch_max != -1:
+            model_files = model_files[:batch_max]
+
+        xy_value = [(m, weight_dtype) for m in model_files]
+        return (("DiffusionModel", xy_value),)
 
 #=======================================================================================================================
 # TSC XY Plot: LoRA Batch (DISABLED)
@@ -4284,6 +4362,7 @@ NODE_CLASS_MAPPINGS = {
     "XY Input: Aesthetic Score": TSC_XYplot_AScore,
     "XY Input: Refiner On/Off": TSC_XYplot_Refiner_OnOff,
     "XY Input: Checkpoint": TSC_XYplot_Checkpoint,
+    "XY Input: Diffusion Model": TSC_XYplot_DiffusionModel,
     "XY Input: Clip Skip": TSC_XYplot_ClipSkip,
     "XY Input: LoRA": TSC_XYplot_LoRA,
     "XY Input: LoRA Plot": TSC_XYplot_LoRA_Plot,

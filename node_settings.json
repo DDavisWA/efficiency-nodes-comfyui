@@ -12,7 +12,8 @@
             "vae": 5,
             "ckpt": 5,
             "lora": 5,
-            "refn": 1
+            "refn": 1,
+            "unet": 3
         }
     }
 }
