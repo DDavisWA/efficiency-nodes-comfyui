@@ -59,7 +59,7 @@ Please check out our WIKI for any use cases and new developments including workf
         <summary><b>XY Plot</b></summary>
     <ul>
         <li>Node that allows users to specify parameters for the Efficiency KSamplers to plot on a grid.</li>
-        <li>The <b>XY Input: Diffusion Model</b> input batches over diffusion model (UNet) files for workflows where the model is loaded separately from CLIP/VAE (e.g. Wan, HunyuanVideo, Flux). Point it at a folder of models; CLIP and VAE stay wired to the KSampler as usual (no Efficient Loader / dependencies input needed).</li>
+        <li>The <b>XY Input: Diffusion Model</b> input plots diffusion model (UNet) files for workflows where the model loads separately from CLIP/VAE (e.g. Wan, HunyuanVideo, Flux). Pick models from the dropdowns, or point it at a folder to batch over all of them; CLIP and VAE stay wired to the KSampler as usual (no Efficient Loader / dependencies input needed).</li>
     </ul>
     <p align="center">
       <img src="https://github.com/LucianoCirino/efficiency-nodes-media/blob/main/images/nodes/XY%20Plot%20-%20Node%20Example.png" width="1080">
@@ -311,7 +311,7 @@ Please check out our WIKI for any use cases and new developments including workf
         <summary><b>XY Plot</b></summary>
     <ul>
         <li>Node that allows users to specify parameters for the Efficiency KSamplers to plot on a grid.</li>
-        <li>The <b>XY Input: Diffusion Model</b> input batches over diffusion model (UNet) files for workflows where the model is loaded separately from CLIP/VAE (e.g. Wan, HunyuanVideo, Flux). Point it at a folder of models; CLIP and VAE stay wired to the KSampler as usual (no Efficient Loader / dependencies input needed).</li>
+        <li>The <b>XY Input: Diffusion Model</b> input plots diffusion model (UNet) files for workflows where the model loads separately from CLIP/VAE (e.g. Wan, HunyuanVideo, Flux). Pick models from the dropdowns, or point it at a folder to batch over all of them; CLIP and VAE stay wired to the KSampler as usual (no Efficient Loader / dependencies input needed).</li>
     </ul>
     <p align="center">
       <img src="https://github.com/LucianoCirino/efficiency-nodes-media/blob/main/images/nodes/XY%20Plot%20-%20Node%20Example.png" width="1080">
