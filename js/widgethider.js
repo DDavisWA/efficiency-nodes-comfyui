@@ -30,7 +30,9 @@ function toggleWidget(node, widget, show = false, suffix = "") {
 
     // Modern ComfyUI frontends honor widget.hidden; the type/computeSize hack alone
     // leaves the last hidden widget rendered (and drawn outside the node bounds).
+    // the second line handles the state connection with detail panel on the right hand side (and keep all param lines in box).
     widget.hidden = !show;
+    if (widget.options) widget.options.hidden = !show;
 
     // Recursively handle linked widgets if they exist
     widget.linkedWidgets?.forEach(w => toggleWidget(node, w, ":" + widget.name, show));
