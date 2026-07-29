@@ -56,6 +56,8 @@ function toggleWidget_2(node, widget, show = false, suffix = "") {
 
     widget.type = show ? origProps[widget.name].origType : HIDDEN_TAG + suffix;
     widget.computeSize = show ? origProps[widget.name].origComputeSize : () => [0, -4];
+    widget.hidden = !show;
+    if (widget.options) widget.options.hidden = !show;
 
     if (initialized){
         const adjustment = show ? WIDGET_HEIGHT : -WIDGET_HEIGHT;
