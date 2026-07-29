@@ -34,8 +34,11 @@ function toggleWidget(node, widget, show = false, suffix = "") {
     widget.hidden = !show;
     if (widget.options) widget.options.hidden = !show;
 
-    // Recursively handle linked widgets if they exist
-    widget.linkedWidgets?.forEach(w => toggleWidget(node, w, ":" + widget.name, show));
+    // Recursively handle linked widgets if they exist.
+    // Args are (node, widget, show, suffix) -- passing them swapped made `show` a
+    // non-empty string (always truthy), so linked widgets could never be hidden and
+    // the suffix became a boolean ("tschidefalse" instead of "tschide:<name>").
+    widget.linkedWidgets?.forEach(w => toggleWidget(node, w, show, ":" + widget.name));
 
     // Calculate the new height for the node based on its computeSize method
     const newHeight = node.computeSize()[1];
